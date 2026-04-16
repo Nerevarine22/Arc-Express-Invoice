@@ -307,10 +307,13 @@ const formatStatus = (statusValue) => (Number(statusValue) === 1 ? 'Paid' : 'Pen
 
 const setPaidUi = (paid) => {
   paidBanner.classList.toggle('hidden', !paid);
+  paidBanner.setAttribute('aria-hidden', String(!paid));
   payInvoiceButton.classList.toggle('hidden', paid);
   invoiceStatusRow.classList.toggle('success-row', paid);
   if (paid) {
     invoiceStatusRow.textContent = 'This invoice is already paid.';
+  } else {
+    invoiceStatusRow.textContent = 'Invoice is pending payment.';
   }
 };
 
@@ -443,7 +446,12 @@ const loadInvoice = async (invoiceIdValue) => {
   }
 
   try {
-    setPaidUi(false);
+    paidBanner.classList.add('hidden');
+    paidBanner.setAttribute('aria-hidden', 'true');
+    payInvoiceButton.classList.remove('hidden');
+    payInvoiceButton.disabled = true;
+    payInvoiceButton.textContent = 'Approve + Pay';
+    invoiceStatusRow.classList.remove('success-row');
     invoiceStatusRow.textContent = 'Loading invoice...';
     const contract = await getReadonlyContract();
     const invoice = await contract.getInvoice(invoiceIdValue);
