@@ -131,14 +131,31 @@ app.innerHTML = `
           </div>
 
           <div class="field-group">
-            <label>
-              USDC amount
-              <input id="invoice-amount" value="250.00" />
-            </label>
-            <label>
-              Description
-              <textarea id="invoice-description" rows="4">Design sprint invoice for April delivery</textarea>
-            </label>
+            <section class="form-section">
+              <h3>Client Info</h3>
+              <label>
+                Client name
+                <input id="invoice-client" value="Acme Studio" />
+              </label>
+            </section>
+
+            <section class="form-section">
+              <h3>Invoice Details</h3>
+              <div class="input-grid">
+                <label>
+                  USDC amount
+                  <input id="invoice-amount" value="250.00" />
+                </label>
+                <label>
+                  Due date
+                  <input id="invoice-due-date" value="Apr 30, 2026" />
+                </label>
+              </div>
+              <label>
+                Description
+                <textarea id="invoice-description" rows="4">Design sprint invoice for April delivery</textarea>
+              </label>
+            </section>
           </div>
 
           <button class="primary full" id="create-invoice-button" type="button">Generate payment link</button>
@@ -157,10 +174,10 @@ app.innerHTML = `
           <div class="invoice-preview">
             <div class="invoice-preview-top">
               <div>
-                <strong>Design sprint invoice</strong>
-                <p>Arc Testnet</p>
+                <strong id="preview-client-name">Acme Studio</strong>
+                <p id="preview-due-date">Due Apr 30, 2026</p>
               </div>
-              <div class="preview-amount">250.00 USDC</div>
+              <div class="preview-amount" id="preview-amount">250.00 USDC</div>
             </div>
 
             <div class="preview-divider"></div>
@@ -168,7 +185,7 @@ app.innerHTML = `
             <div class="invoice-preview-list">
               <div class="preview-row">
                 <span>Client</span>
-                <strong>Saved in browser</strong>
+                <strong id="preview-client-meta">Acme Studio</strong>
               </div>
               <div class="preview-row">
                 <span>Payment link</span>
@@ -177,6 +194,10 @@ app.innerHTML = `
               <div class="preview-row">
                 <span>Status</span>
                 <strong>Pending until paid</strong>
+              </div>
+              <div class="preview-row">
+                <span>Details</span>
+                <strong id="preview-description">Design sprint invoice for April delivery</strong>
               </div>
             </div>
           </div>
@@ -254,9 +275,16 @@ const previewPanel = document.querySelector('#preview-panel');
 const myPanel = document.querySelector('#my-panel');
 const paymentShell = document.querySelector('#payment-shell');
 const createInvoiceButton = document.querySelector('#create-invoice-button');
+const invoiceClient = document.querySelector('#invoice-client');
 const invoiceAmount = document.querySelector('#invoice-amount');
+const invoiceDueDate = document.querySelector('#invoice-due-date');
 const invoiceDescription = document.querySelector('#invoice-description');
 const invoiceResult = document.querySelector('#invoice-result');
+const previewClientName = document.querySelector('#preview-client-name');
+const previewClientMeta = document.querySelector('#preview-client-meta');
+const previewDueDate = document.querySelector('#preview-due-date');
+const previewAmount = document.querySelector('#preview-amount');
+const previewDescription = document.querySelector('#preview-description');
 const lookupInvoiceId = document.querySelector('#lookup-invoice-id');
 const payInvoiceButton = document.querySelector('#pay-invoice-button');
 const invoiceView = document.querySelector('#invoice-view');
@@ -337,6 +365,19 @@ const openWalletPicker = () => {
 };
 
 const closeWalletPicker = () => walletPicker.classList.add('hidden');
+
+const syncLivePreview = () => {
+  const clientName = invoiceClient.value.trim() || 'Untitled client';
+  const amount = invoiceAmount.value.trim() || '0.00';
+  const dueDate = invoiceDueDate.value.trim() || 'No due date';
+  const description = invoiceDescription.value.trim() || 'Invoice description';
+
+  previewClientName.textContent = clientName;
+  previewClientMeta.textContent = clientName;
+  previewDueDate.textContent = `Due ${dueDate}`;
+  previewAmount.textContent = `${amount} USDC`;
+  previewDescription.textContent = description;
+};
 
 const setWalletState = ({ account = '', chainId = '' } = {}) => {
   if (!account) {
@@ -534,7 +575,7 @@ const renderInvoiceList = async () => {
         <article class="invoice-row ${status === 'Paid' ? 'paid' : 'pending'}">
           <div>
             <strong>#${item.invoiceId}</strong>
-            <p>${item.description}</p>
+            <p>${item.clientName || 'Client'} · ${item.description}</p>
             <small>${item.amount} USDC</small>
             ${
               status === 'Paid'
@@ -702,6 +743,14 @@ const openPaymentLink = (invoiceId) => {
   return url;
 };
 
+syncLivePreview();
+[
+  invoiceClient,
+  invoiceAmount,
+  invoiceDueDate,
+  invoiceDescription,
+].forEach((field) => field?.addEventListener('input', syncLivePreview));
+
 walletPickerClose?.addEventListener('click', closeWalletPicker);
 walletPicker?.addEventListener('click', (event) => {
   if (event.target === walletPicker) closeWalletPicker();
@@ -763,6 +812,8 @@ createInvoiceButton.addEventListener('click', async () => {
     const contract = new Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
     const amount = parseUnits(String(invoiceAmount.value).trim(), USDC_DECIMALS);
     const description = invoiceDescription.value.trim();
+    const clientName = invoiceClient.value.trim();
+    const dueDate = invoiceDueDate.value.trim();
     const tx = await contract.createInvoice(amount, description);
     invoiceResult.textContent = `Transaction submitted: ${tx.hash}`;
 
@@ -784,6 +835,8 @@ createInvoiceButton.addEventListener('click', async () => {
         invoiceId,
         amount: formatUnits(amount, USDC_DECIMALS),
         description,
+        clientName,
+        dueDate,
         status: 'Pending',
         paymentLink: link,
       });
