@@ -260,6 +260,15 @@ let currentInvoiceId = null;
 let paymentMode = false;
 let lastPaymentLink = '';
 
+const getInjectedProvider = () => {
+  if (typeof window === 'undefined') return null;
+  if (window.ethereum) return window.ethereum;
+  if (Array.isArray(window.ethereum?.providers) && window.ethereum.providers.length) {
+    return window.ethereum.providers[0];
+  }
+  return null;
+};
+
 const setWalletState = ({ account = '', chainId = '' } = {}) => {
   if (!account) {
     walletTitle.textContent = 'Wallet not connected';
@@ -298,24 +307,31 @@ const showPaymentShell = (show) => {
 };
 
 const getCurrentChainId = async () => {
-  const hexChainId = await window.ethereum.request({ method: 'eth_chainId' });
+  const ethereum = getInjectedProvider();
+  if (!ethereum) throw new Error('No wallet provider found');
+  const hexChainId = await ethereum.request({ method: 'eth_chainId' });
   return Number.parseInt(hexChainId, 16);
 };
 
 const connectWallet = async () => {
-  if (!window.ethereum) {
-    walletSubtitle.textContent = 'Install MetaMask to connect';
+  const ethereum = getInjectedProvider();
+  if (!ethereum) {
+    walletTitle.textContent = 'Wallet not detected';
+    walletSubtitle.textContent = 'Open this site in MetaMask or enable site access';
+    walletButton.textContent = 'Install MetaMask';
     return;
   }
 
   walletButton.disabled = true;
   walletButton.textContent = 'Connecting...';
   try {
-    const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+    const accounts = await ethereum.request({ method: 'eth_requestAccounts' });
     const chainId = await getCurrentChainId();
     setWalletState({ account: accounts?.[0] ?? '', chainId });
   } catch (error) {
     console.error('Wallet connection failed:', error);
+    walletTitle.textContent = 'Wallet connection failed';
+    walletSubtitle.textContent = error?.message || 'Check MetaMask site access';
     walletButton.textContent = 'Connect wallet';
   } finally {
     walletButton.disabled = false;
@@ -323,21 +339,24 @@ const connectWallet = async () => {
 };
 
 const switchToArcTestnet = async () => {
-  if (!window.ethereum) {
-    walletSubtitle.textContent = 'Install MetaMask to switch networks';
+  const ethereum = getInjectedProvider();
+  if (!ethereum) {
+    walletTitle.textContent = 'Wallet not detected';
+    walletSubtitle.textContent = 'Open this site in MetaMask or enable site access';
+    walletButton.textContent = 'Install MetaMask';
     return;
   }
 
   walletButton.disabled = true;
   walletButton.textContent = 'Switching...';
   try {
-    await window.ethereum.request({
+    await ethereum.request({
       method: 'wallet_switchEthereumChain',
       params: [{ chainId: ARC_TESTNET_CHAIN_ID_HEX }],
     });
   } catch (error) {
     if (error?.code === 4902) {
-      await window.ethereum.request({ method: 'wallet_addEthereumChain', params: [ARC_TESTNET_PARAMS] });
+      await ethereum.request({ method: 'wallet_addEthereumChain', params: [ARC_TESTNET_PARAMS] });
     } else {
       throw error;
     }
@@ -350,21 +369,24 @@ const switchToArcTestnet = async () => {
 const disconnectWallet = () => setWalletState();
 
 const syncWallet = async () => {
-  if (!window.ethereum) return;
-  const accounts = await window.ethereum.request({ method: 'eth_accounts' });
+  const ethereum = getInjectedProvider();
+  if (!ethereum) return;
+  const accounts = await ethereum.request({ method: 'eth_accounts' });
   const chainId = await getCurrentChainId();
   setWalletState({ account: accounts?.[0] ?? '', chainId });
 };
 
 const getReadonlyContract = async () => {
-  if (!window.ethereum) throw new Error('MetaMask is required');
-  const provider = new BrowserProvider(window.ethereum);
+  const ethereum = getInjectedProvider();
+  if (!ethereum) throw new Error('MetaMask is required');
+  const provider = new BrowserProvider(ethereum);
   return new Contract(CONTRACT_ADDRESS, CONTRACT_ABI, provider);
 };
 
 const getUsdcContract = async (withSigner = false) => {
-  if (!window.ethereum) throw new Error('MetaMask is required');
-  const provider = new BrowserProvider(window.ethereum);
+  const ethereum = getInjectedProvider();
+  if (!ethereum) throw new Error('MetaMask is required');
+  const provider = new BrowserProvider(ethereum);
   if (withSigner) {
     const signer = await provider.getSigner();
     return new Contract(USDC_ADDRESS, USDC_ABI, signer);
@@ -494,10 +516,10 @@ const renderCreatedLink = (url) => {
 };
 
 const refreshAllowanceState = async (invoiceAmountValue) => {
-  if (!window.ethereum || !invoiceAmountValue) return;
+  if (!getInjectedProvider() || !invoiceAmountValue) return;
   try {
     const usdc = await getUsdcContract(false);
-    const provider = new BrowserProvider(window.ethereum);
+    const provider = new BrowserProvider(getInjectedProvider());
     const signer = await provider.getSigner();
     const owner = await signer.getAddress();
     const allowance = await usdc.allowance(owner, CONTRACT_ADDRESS);
@@ -509,7 +531,7 @@ const refreshAllowanceState = async (invoiceAmountValue) => {
 };
 
 const loadInvoice = async (invoiceIdValue) => {
-  if (!window.ethereum) {
+  if (!getInjectedProvider()) {
     invoiceStatusRow.textContent = 'Install MetaMask to load invoice data.';
     return;
   }
@@ -561,7 +583,7 @@ const openInvoiceFromInput = async () => {
 };
 
 const approveAllowance = async (invoiceIdValue) => {
-  const provider = new BrowserProvider(window.ethereum);
+  const provider = new BrowserProvider(getInjectedProvider());
   const signer = await provider.getSigner();
   const usdc = new Contract(USDC_ADDRESS, USDC_ABI, signer);
   const invoice = await (await getReadonlyContract()).getInvoice(invoiceIdValue);
@@ -573,7 +595,7 @@ const approveAllowance = async (invoiceIdValue) => {
 };
 
 const payCurrentInvoice = async (invoiceIdValue) => {
-  const provider = new BrowserProvider(window.ethereum);
+  const provider = new BrowserProvider(getInjectedProvider());
   const signer = await provider.getSigner();
   const payerAddress = await signer.getAddress();
   const contract = new Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
@@ -629,7 +651,7 @@ lookupInvoiceId.addEventListener('keydown', (event) => {
 });
 
 createInvoiceButton.addEventListener('click', async () => {
-  if (!window.ethereum) {
+  if (!getInjectedProvider()) {
     invoiceResult.textContent = 'Install MetaMask to create an invoice.';
     return;
   }
@@ -638,7 +660,7 @@ createInvoiceButton.addEventListener('click', async () => {
   createInvoiceButton.textContent = 'Creating...';
 
   try {
-    const provider = new BrowserProvider(window.ethereum);
+    const provider = new BrowserProvider(getInjectedProvider());
     const network = await provider.getNetwork();
     if (Number(network.chainId) !== ARC_TESTNET_CHAIN_ID) {
       invoiceResult.textContent = 'Please switch your wallet to Arc Testnet first.';
@@ -691,7 +713,7 @@ payInvoiceButton.addEventListener('click', async () => {
     invoiceStatusRow.textContent = 'Load an invoice first.';
     return;
   }
-  if (!window.ethereum) {
+  if (!getInjectedProvider()) {
     invoiceStatusRow.textContent = 'MetaMask is required.';
     return;
   }
@@ -700,7 +722,7 @@ payInvoiceButton.addEventListener('click', async () => {
   payInvoiceButton.textContent = 'Processing...';
 
   try {
-    const provider = new BrowserProvider(window.ethereum);
+    const provider = new BrowserProvider(getInjectedProvider());
     const network = await provider.getNetwork();
     if (Number(network.chainId) !== ARC_TESTNET_CHAIN_ID) {
       invoiceStatusRow.textContent = 'Please switch your wallet to Arc Testnet first.';
@@ -737,9 +759,10 @@ payInvoiceButton.addEventListener('click', async () => {
   }
 });
 
-if (window.ethereum) {
-  window.ethereum.on?.('accountsChanged', syncWallet);
-  window.ethereum.on?.('chainChanged', syncWallet);
+const injectedProvider = getInjectedProvider();
+if (injectedProvider) {
+  injectedProvider.on?.('accountsChanged', syncWallet);
+  injectedProvider.on?.('chainChanged', syncWallet);
   syncWallet();
 } else {
   setWalletState();
