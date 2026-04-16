@@ -68,6 +68,67 @@ textarea {
   box-shadow: var(--shadow);
 }
 
+.wallet-picker {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(17, 17, 17, 0.32);
+  backdrop-filter: blur(4px);
+}
+
+.wallet-picker-card {
+  width: min(560px, 100%);
+}
+
+.wallet-picker-list {
+  display: grid;
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.wallet-choice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  width: 100%;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: #ffffff;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 150ms ease, border-color 150ms ease, transform 150ms ease;
+}
+
+.wallet-choice:hover {
+  background: #f9fafb;
+  border-color: #d1d5db;
+  transform: translateY(-1px);
+}
+
+.wallet-choice strong {
+  display: block;
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.wallet-choice small {
+  display: block;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.wallet-choice-arrow {
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 500;
+}
+
 .brand {
   display: flex;
   align-items: center;
@@ -674,5 +735,9 @@ textarea:focus {
 
   .payment-shell .detail-grid {
     grid-template-columns: 1fr;
+  }
+
+  .wallet-picker {
+    padding: 16px;
   }
 }

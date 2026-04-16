@@ -76,6 +76,19 @@ app.innerHTML = `
       </div>
     </header>
 
+    <section class="wallet-picker hidden" id="wallet-picker">
+      <div class="wallet-picker-card card">
+        <div class="section-head">
+          <div>
+            <p class="section-label">Choose wallet</p>
+            <h2>Select a provider to continue</h2>
+          </div>
+          <button class="secondary" id="wallet-picker-close" type="button">Close</button>
+        </div>
+        <div class="wallet-picker-list" id="wallet-picker-list"></div>
+      </div>
+    </section>
+
     <main class="hero">
       <section class="hero-copy card">
         <div class="hero-kicker">Arc Express Invoice</div>
@@ -253,21 +266,77 @@ const invoiceStatusRow = document.querySelector('#invoice-status-row');
 const paidBanner = document.querySelector('#paid-banner');
 const invoiceList = document.querySelector('#invoice-list');
 const myInvoicesCount = document.querySelector('#my-invoices-count');
+const walletPicker = document.querySelector('#wallet-picker');
+const walletPickerList = document.querySelector('#wallet-picker-list');
+const walletPickerClose = document.querySelector('#wallet-picker-close');
 
 const shortAddress = (value) => `${value.slice(0, 6)}...${value.slice(-4)}`;
 const shortHash = (value) => `${value.slice(0, 8)}...${value.slice(-6)}`;
 let currentInvoiceId = null;
 let paymentMode = false;
 let lastPaymentLink = '';
+const walletProviders = new Map();
+let selectedWalletKey = '';
+
+const getProviderKey = (provider) => provider?.rdns || provider?.name || provider?.info?.rdns || provider?.info?.name || provider?.uuid || 'wallet';
 
 const getInjectedProvider = () => {
   if (typeof window === 'undefined') return null;
-  if (window.ethereum) return window.ethereum;
-  if (Array.isArray(window.ethereum?.providers) && window.ethereum.providers.length) {
-    return window.ethereum.providers[0];
+  if (selectedWalletKey && walletProviders.has(selectedWalletKey)) {
+    return walletProviders.get(selectedWalletKey);
   }
-  return null;
+  if (walletProviders.size === 1) {
+    return walletProviders.values().next().value;
+  }
+  if (window.ethereum?.providers?.length) {
+    const metamaskProvider =
+      window.ethereum.providers.find((provider) => provider?.isMetaMask) || window.ethereum.providers[0];
+    if (metamaskProvider) {
+      const key = getProviderKey(metamaskProvider);
+      walletProviders.set(key, metamaskProvider);
+      selectedWalletKey = key;
+      return metamaskProvider;
+    }
+  }
+  return window.ethereum || null;
 };
+
+const registerProvider = (provider) => {
+  if (!provider) return;
+  const key = getProviderKey(provider);
+  if (walletProviders.has(key)) return;
+  walletProviders.set(key, provider);
+};
+
+const openWalletPicker = () => {
+  if (!walletProviders.size) return;
+  walletPicker.classList.remove('hidden');
+  walletPickerList.innerHTML = [...walletProviders.entries()]
+    .map(([key, provider]) => {
+      const label = provider?.info?.name || provider?.name || (provider?.isMetaMask ? 'MetaMask' : 'Wallet');
+      const rdns = provider?.info?.rdns || provider?.rdns || '';
+      return `
+        <button class="wallet-choice" type="button" data-wallet-key="${key}">
+          <span>
+            <strong>${label}</strong>
+            <small>${rdns || 'Available wallet provider'}</small>
+          </span>
+          <span class="wallet-choice-arrow">Connect</span>
+        </button>
+      `;
+    })
+    .join('');
+
+  walletPickerList.querySelectorAll('[data-wallet-key]').forEach((button) => {
+    button.addEventListener('click', async () => {
+      selectedWalletKey = button.getAttribute('data-wallet-key') || '';
+      walletPicker.classList.add('hidden');
+      await connectWallet();
+    });
+  });
+};
+
+const closeWalletPicker = () => walletPicker.classList.add('hidden');
 
 const setWalletState = ({ account = '', chainId = '' } = {}) => {
   if (!account) {
@@ -296,6 +365,19 @@ const setTab = (tab) => {
   myTabButton.classList.toggle('active-tab', !isCreate);
 };
 
+const requestWalletProviders = () => {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new Event('eip6963:requestProvider'));
+};
+
+const collectAnnouncedProvider = (event) => {
+  const detail = event?.detail;
+  const provider = detail?.provider;
+  if (!provider) return;
+  provider.info = detail.info || provider.info;
+  registerProvider(provider);
+};
+
 const showPaymentShell = (show) => {
   paymentMode = show;
   paymentShell.classList.toggle('hidden', !show);
@@ -314,6 +396,11 @@ const getCurrentChainId = async () => {
 };
 
 const connectWallet = async () => {
+  if (!selectedWalletKey && walletProviders.size > 1) {
+    openWalletPicker();
+    return;
+  }
+
   const ethereum = getInjectedProvider();
   if (!ethereum) {
     walletTitle.textContent = 'Wallet not detected';
@@ -615,6 +702,11 @@ const openPaymentLink = (invoiceId) => {
   return url;
 };
 
+walletPickerClose?.addEventListener('click', closeWalletPicker);
+walletPicker?.addEventListener('click', (event) => {
+  if (event.target === walletPicker) closeWalletPicker();
+});
+
 walletButton.addEventListener('click', async () => {
   if (walletButton.textContent === 'Disconnect') return disconnectWallet();
   if (walletButton.textContent === 'Switch network') {
@@ -759,11 +851,23 @@ payInvoiceButton.addEventListener('click', async () => {
   }
 });
 
+if (typeof window !== 'undefined') {
+  window.addEventListener('eip6963:announceProvider', collectAnnouncedProvider);
+  requestWalletProviders();
+}
+
+if (typeof window !== 'undefined' && window.ethereum?.providers?.length) {
+  window.ethereum.providers.forEach(registerProvider);
+}
+
 const injectedProvider = getInjectedProvider();
 if (injectedProvider) {
   injectedProvider.on?.('accountsChanged', syncWallet);
   injectedProvider.on?.('chainChanged', syncWallet);
   syncWallet();
+  if (walletProviders.size > 1 && !selectedWalletKey) {
+    walletButton.textContent = 'Choose wallet';
+  }
 } else {
   setWalletState();
 }
