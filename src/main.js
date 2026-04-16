@@ -661,6 +661,7 @@ const refreshAllowanceState = async (invoiceAmountValue) => {
 const loadInvoice = async (invoiceIdValue) => {
   if (!getInjectedProvider()) {
     invoiceStatusRow.textContent = 'Install MetaMask to load invoice data.';
+    setPaymentButtonState('disabled', 'Wallet required');
     return;
   }
 
@@ -668,8 +669,7 @@ const loadInvoice = async (invoiceIdValue) => {
     paidBanner.classList.add('hidden');
     paidBanner.setAttribute('aria-hidden', 'true');
     payInvoiceButton.classList.remove('hidden');
-    payInvoiceButton.disabled = true;
-    payInvoiceButton.textContent = 'Approve + Pay';
+    setPaymentButtonState('disabled', 'Loading...');
     invoiceStatusRow.classList.remove('success-row');
     invoiceStatusRow.textContent = 'Loading invoice...';
     const contract = await getReadonlyContract();
@@ -686,20 +686,19 @@ const loadInvoice = async (invoiceIdValue) => {
         ? `Paid at ${new Date(Number(invoice.paidAt) * 1000).toLocaleString()}`
         : 'Invoice is pending payment.';
     setPaidUi(Number(invoice.status) === 1);
-    payInvoiceButton.disabled = Number(invoice.status) === 1;
-    payInvoiceButton.textContent = Number(invoice.status) === 1 ? 'Already paid' : 'Approve + Pay';
+    setPaymentButtonState(Number(invoice.status) === 1 ? 'disabled' : 'ready', Number(invoice.status) === 1 ? 'Already paid' : 'Approve + Pay');
     await refreshAllowanceState(formatUnits(invoice.amount, USDC_DECIMALS));
   } catch (error) {
     console.error('Load invoice failed:', error);
     currentInvoiceId = null;
-    invoiceStatusRow.textContent = `Could not load invoice: ${error?.shortMessage || error?.message || 'unknown error'}`;
-    payInvoiceButton.disabled = true;
+    invoiceStatusRow.textContent = `Could not load invoice: ${error?.shortMessage || error?.message || 'unknown invoice'}`;
     setPaidUi(false);
     invoiceStatus.textContent = 'Unknown';
     invoiceIssuer.textContent = '-';
     invoiceView.querySelector('h2').textContent = `Invoice #${invoiceIdValue}`;
     invoiceView.querySelector('.amount').textContent = '$0.00 USDC';
     invoiceView.querySelector('.muted').textContent = 'Load an invoice to see details from the contract.';
+    setPaymentButtonState('disabled', 'Invalid invoice');
   }
 };
 
@@ -862,6 +861,7 @@ createInvoiceButton.addEventListener('click', async () => {
 payInvoiceButton.addEventListener('click', async () => {
   if (!currentInvoiceId) {
     invoiceStatusRow.textContent = 'Load an invoice first.';
+    setPaymentButtonState('disabled', 'Load invoice');
     return;
   }
   const ethereum = getInjectedProvider();
@@ -908,9 +908,7 @@ payInvoiceButton.addEventListener('click', async () => {
     invoiceStatusRow.textContent = `Could not update invoice: ${error?.shortMessage || error?.message || 'unknown error'}`;
   } finally {
     if (currentInvoiceId) {
-      payInvoiceButton.disabled = false;
-      payInvoiceButton.dataset.state = '';
-      payInvoiceButton.textContent = 'Approve + Pay';
+      setPaymentButtonState('ready', 'Approve + Pay');
     }
   }
 });
