@@ -55,7 +55,7 @@ const store = {
 };
 
 app.innerHTML = `
-  <div class="page-shell">
+  <div class="page-shell app-shell">
     <header class="topbar">
       <div class="brand">
         <div class="brand-mark">AEI</div>
@@ -77,59 +77,126 @@ app.innerHTML = `
     </header>
 
     <main class="hero">
-      <section class="hero-copy">
-        <p class="eyebrow">Arc Express Invoice</p>
-        <h1>Create invoices, share links, and track payments.</h1>
-        <p class="lede">
-          Create a USDC invoice on Arc Testnet, copy a payment link, and keep an eye on which invoices are pending or paid.
-        </p>
-        <div class="actions">
-          <button class="primary" id="create-tab-button" type="button">Create invoice</button>
-          <button class="secondary" id="my-tab-button" type="button">My invoices</button>
-        </div>
-        <div class="contract-strip">
-          <span class="contract-label">Deployed contract</span>
-          <code id="contract-address">${CONTRACT_ADDRESS}</code>
+      <section class="hero-copy card">
+        <div class="hero-kicker">Arc Express Invoice</div>
+        <div class="hero-layout">
+          <div class="hero-text">
+            <h1>Create, share, and track invoices.</h1>
+            <p class="lede">
+              Create a USDC invoice on Arc Testnet, copy a payment link, and track which invoices are pending or paid.
+            </p>
+            <div class="actions">
+              <button class="primary" id="create-tab-button" type="button">Create invoice</button>
+              <button class="secondary" id="my-tab-button" type="button">My invoices</button>
+            </div>
+          </div>
+          <div class="hero-metrics" aria-hidden="true">
+            <div class="metric">
+              <span>Network</span>
+              <strong>Arc Testnet</strong>
+            </div>
+            <div class="metric">
+              <span>Payment</span>
+              <strong>USDC</strong>
+            </div>
+            <div class="metric">
+              <span>Tracking</span>
+              <strong>On-chain status</strong>
+            </div>
+          </div>
         </div>
       </section>
 
-      <section class="panel-grid">
-        <article class="card" id="create-panel">
-          <div class="card-head">
-            <span class="chip">Create invoice</span>
+      <section class="dashboard-grid">
+        <article class="card panel" id="create-panel">
+          <div class="section-head">
+            <div>
+              <p class="section-label">Create invoice</p>
+              <h2>New invoice</h2>
+            </div>
             <span class="status">Draft</span>
           </div>
-          <h2>New invoice</h2>
-          <label>
-            USDC amount
-            <input id="invoice-amount" value="250.00" />
-          </label>
-          <label>
-            Description
-            <textarea id="invoice-description" rows="4">Design sprint invoice for April delivery</textarea>
-          </label>
+
+          <div class="field-group">
+            <label>
+              USDC amount
+              <input id="invoice-amount" value="250.00" />
+            </label>
+            <label>
+              Description
+              <textarea id="invoice-description" rows="4">Design sprint invoice for April delivery</textarea>
+            </label>
+          </div>
+
           <button class="primary full" id="create-invoice-button" type="button">Generate payment link</button>
           <div class="link-box" id="invoice-result">Your payment link will appear here.</div>
         </article>
 
-        <article class="card soft hidden" id="my-panel">
-          <div class="card-head">
-            <span class="chip ghost">My invoices</span>
-            <span class="status pending" id="my-invoices-count">0 invoices</span>
+        <article class="card panel preview-panel" id="preview-panel">
+          <div class="section-head">
+            <div>
+              <p class="section-label">Live preview</p>
+              <h2>Invoice summary</h2>
+            </div>
+            <span class="status pending">Pending</span>
           </div>
-          <h2>Saved invoices</h2>
-          <p class="muted">These are the invoices created from this browser.</p>
-          <div class="invoice-list" id="invoice-list"></div>
+
+          <div class="invoice-preview">
+            <div class="invoice-preview-top">
+              <div>
+                <strong>Design sprint invoice</strong>
+                <p>Arc Testnet</p>
+              </div>
+              <div class="preview-amount">250.00 USDC</div>
+            </div>
+
+            <div class="preview-divider"></div>
+
+            <div class="invoice-preview-list">
+              <div class="preview-row">
+                <span>Client</span>
+                <strong>Saved in browser</strong>
+              </div>
+              <div class="preview-row">
+                <span>Payment link</span>
+                <strong>Copy after creation</strong>
+              </div>
+              <div class="preview-row">
+                <span>Status</span>
+                <strong>Pending until paid</strong>
+              </div>
+            </div>
+          </div>
+
+          <div class="contract-strip compact">
+            <span class="contract-label">Deployed contract</span>
+            <code id="contract-address">${CONTRACT_ADDRESS}</code>
+          </div>
         </article>
       </section>
+
+      <article class="card panel hidden" id="my-panel">
+        <div class="section-head">
+          <div>
+            <p class="section-label">My invoices</p>
+            <h2>Saved invoices</h2>
+          </div>
+          <span class="status pending" id="my-invoices-count">0 invoices</span>
+        </div>
+        <p class="muted">These are the invoices created from this browser.</p>
+        <div class="invoice-list" id="invoice-list"></div>
+      </article>
     </main>
   </div>
 
   <section class="payment-shell hidden" id="payment-shell">
-    <div class="page-shell">
-      <article class="card soft">
-        <div class="card-head">
-          <span class="chip ghost">Pay invoice</span>
+    <div class="page-shell payment-page-shell">
+      <article class="card payment-card">
+        <div class="section-head">
+          <div>
+            <p class="section-label">Pay invoice</p>
+            <h2>Invoice payment</h2>
+          </div>
           <span class="status pending">Pending</span>
         </div>
         <label>
@@ -170,6 +237,7 @@ const contractAddress = document.querySelector('#contract-address');
 const createTabButton = document.querySelector('#create-tab-button');
 const myTabButton = document.querySelector('#my-tab-button');
 const createPanel = document.querySelector('#create-panel');
+const previewPanel = document.querySelector('#preview-panel');
 const myPanel = document.querySelector('#my-panel');
 const paymentShell = document.querySelector('#payment-shell');
 const createInvoiceButton = document.querySelector('#create-invoice-button');
@@ -223,6 +291,7 @@ const showPaymentShell = (show) => {
   paymentMode = show;
   paymentShell.classList.toggle('hidden', !show);
   createPanel.classList.toggle('hidden', show);
+  previewPanel.classList.toggle('hidden', show);
   myPanel.classList.toggle('hidden', show);
   createTabButton.classList.toggle('hidden', show);
   myTabButton.classList.toggle('hidden', show);
