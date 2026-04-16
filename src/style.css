@@ -215,6 +215,14 @@ textarea {
   transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease, transform 150ms ease;
 }
 
+.primary:disabled,
+.wallet-btn:disabled,
+.secondary:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+  transform: none;
+}
+
 .wallet-btn {
   background: var(--primary);
   color: white;
@@ -703,6 +711,18 @@ textarea:focus {
 
 .payment-shell .status-row {
   min-height: 24px;
+}
+
+.payment-shell .primary[data-state="loading"] {
+  background: var(--primary-hover);
+}
+
+.payment-shell .primary[data-state="error"] {
+  background: #b91c1c;
+}
+
+.payment-shell .primary[data-state="disabled"] {
+  background: #9ca3af;
 }
 
 .success-row {

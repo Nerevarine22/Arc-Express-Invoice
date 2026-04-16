@@ -736,6 +736,12 @@ const payCurrentInvoice = async (invoiceIdValue) => {
   return { tx, payerAddress };
 };
 
+const setPaymentButtonState = (state, label) => {
+  payInvoiceButton.disabled = state === 'disabled';
+  payInvoiceButton.dataset.state = state;
+  if (label) payInvoiceButton.textContent = label;
+};
+
 const openPaymentLink = (invoiceId) => {
   const url = `${window.location.origin}/?invoice=${invoiceId}`;
   lastPaymentLink = url;
@@ -858,19 +864,21 @@ payInvoiceButton.addEventListener('click', async () => {
     invoiceStatusRow.textContent = 'Load an invoice first.';
     return;
   }
-  if (!getInjectedProvider()) {
-    invoiceStatusRow.textContent = 'MetaMask is required.';
+  const ethereum = getInjectedProvider();
+  if (!ethereum) {
+    invoiceStatusRow.textContent = 'Wallet not detected. Open the site in MetaMask or enable site access.';
+    setPaymentButtonState('error', 'Wallet required');
     return;
   }
 
-  payInvoiceButton.disabled = true;
-  payInvoiceButton.textContent = 'Processing...';
+  setPaymentButtonState('loading', 'Processing...');
 
   try {
-    const provider = new BrowserProvider(getInjectedProvider());
+    const provider = new BrowserProvider(ethereum);
     const network = await provider.getNetwork();
     if (Number(network.chainId) !== ARC_TESTNET_CHAIN_ID) {
       invoiceStatusRow.textContent = 'Please switch your wallet to Arc Testnet first.';
+      setPaymentButtonState('error', 'Wrong network');
       return;
     }
 
@@ -879,7 +887,7 @@ payInvoiceButton.addEventListener('click', async () => {
     if (alreadyPaid) {
       setPaidUi(true);
       invoiceStatusRow.textContent = 'This invoice is already paid.';
-      payInvoiceButton.disabled = true;
+      setPaymentButtonState('disabled', 'Already paid');
       return;
     }
     const signer = await provider.getSigner();
@@ -899,8 +907,11 @@ payInvoiceButton.addEventListener('click', async () => {
     console.error('Pay failed:', error);
     invoiceStatusRow.textContent = `Could not update invoice: ${error?.shortMessage || error?.message || 'unknown error'}`;
   } finally {
-    payInvoiceButton.disabled = false;
-    payInvoiceButton.textContent = 'Approve + Pay';
+    if (currentInvoiceId) {
+      payInvoiceButton.disabled = false;
+      payInvoiceButton.dataset.state = '';
+      payInvoiceButton.textContent = 'Approve + Pay';
+    }
   }
 });
 
